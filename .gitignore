@@ -1,2 +1,4 @@
 node_modules/
 .env
+# Ignore Firebase service account JSON file
+backend/src/config/firebaseServiceAccount.json

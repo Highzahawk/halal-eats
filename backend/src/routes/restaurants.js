@@ -2,9 +2,10 @@
 const express = require("express");
 const { body, validationResult } = require("express-validator"); // Input validation
 const router = express.Router();
-const pool = require("../models/db");
+const pool = require("../models/db"); // Database connection
+const authenticateUser = require("../middleware/authMiddleware"); // Import auth middleware
 
-// Get all restaurants (GET)
+// Get all restaurants (Public)
 router.get("/", async (req, res) => {
   try {
     const result = await pool.query("SELECT * FROM restaurants");
@@ -15,11 +16,11 @@ router.get("/", async (req, res) => {
   }
 });
 
-// Get a single restaurant by ID (GET)
+// Get a single restaurant by ID (Public)
 router.get("/:id", async (req, res) => {
   const { id } = req.params;
   try {
-    const result = await pool.query("SELECT * FROM restaurants WHERE id = $1::uuid", [id]);
+    const result = await pool.query("SELECT * FROM restaurants WHERE id = $1", [id]);
     if (result.rows.length === 0) {
       return res.status(404).json({ error: "Restaurant not found." });
     }
@@ -30,16 +31,15 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// Create a new restaurant (POST)
+// Create a new restaurant (Protected)
 router.post(
   "/",
+  authenticateUser,
   [
     body("name").notEmpty().withMessage("Restaurant name is required"),
     body("location").notEmpty().withMessage("Location is required"),
     body("cuisine").notEmpty().withMessage("Cuisine type is required"),
-    body("rating")
-      .isFloat({ min: 0, max: 5 })
-      .withMessage("Rating must be a number between 0 and 5"),
+    body("rating").isFloat({ min: 0, max: 5 }).withMessage("Rating must be between 0 and 5"),
   ],
   async (req, res) => {
     const errors = validationResult(req);
@@ -61,14 +61,15 @@ router.post(
   }
 );
 
-// Update a restaurant (PUT)
+// Update a restaurant (Protected)
 router.put(
   "/:id",
+  authenticateUser,
   [
-    body("rating")
-      .optional()
-      .isFloat({ min: 0, max: 5 })
-      .withMessage("Rating must be a number between 0 and 5"),
+    body("name").optional().notEmpty().withMessage("Restaurant name cannot be empty"),
+    body("location").optional().notEmpty().withMessage("Location cannot be empty"),
+    body("cuisine").optional().notEmpty().withMessage("Cuisine type cannot be empty"),
+    body("rating").optional().isFloat({ min: 0, max: 5 }).withMessage("Rating must be between 0 and 5"),
   ],
   async (req, res) => {
     const errors = validationResult(req);
@@ -80,7 +81,7 @@ router.put(
     const { name, location, cuisine, rating } = req.body;
     try {
       const result = await pool.query(
-        "UPDATE restaurants SET name = COALESCE($1, name), location = COALESCE($2, location), cuisine = COALESCE($3, cuisine), rating = COALESCE($4, rating) WHERE id = $5::uuid RETURNING *",
+        "UPDATE restaurants SET name = COALESCE($1, name), location = COALESCE($2, location), cuisine = COALESCE($3, cuisine), rating = COALESCE($4, rating) WHERE id = $5 RETURNING *",
         [name, location, cuisine, rating, id]
       );
       if (result.rows.length === 0) {
@@ -94,11 +95,11 @@ router.put(
   }
 );
 
-// Delete a restaurant (DELETE)
-router.delete("/:id", async (req, res) => {
+// Delete a restaurant (Protected)
+router.delete("/:id", authenticateUser, async (req, res) => {
   const { id } = req.params;
   try {
-    const result = await pool.query("DELETE FROM restaurants WHERE id = $1::uuid RETURNING *", [id]);
+    const result = await pool.query("DELETE FROM restaurants WHERE id = $1 RETURNING *", [id]);
     if (result.rows.length === 0) {
       return res.status(404).json({ error: "Restaurant not found." });
     }
@@ -110,4 +111,3 @@ router.delete("/:id", async (req, res) => {
 });
 
 module.exports = router;
-

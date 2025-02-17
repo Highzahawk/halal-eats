@@ -3,9 +3,10 @@ const express = require("express");
 const { body, validationResult } = require("express-validator"); // Input validation
 const router = express.Router();
 const pool = require("../models/db");
+const authenticateUser = require("../middleware/authMiddleware"); // Import Firebase Auth middleware
 
-// Get all users (GET)
-router.get("/", async (req, res) => {
+// 🔒 Get all users (Protected) - Requires authentication
+router.get("/", authenticateUser, async (req, res) => {
   try {
     const result = await pool.query("SELECT * FROM users");
     res.json(result.rows);
@@ -15,8 +16,8 @@ router.get("/", async (req, res) => {
   }
 });
 
-// Get a single user by ID (GET)
-router.get("/:id", async (req, res) => {
+// 🔒 Get a single user by ID (Protected) - Requires authentication
+router.get("/:id", authenticateUser, async (req, res) => {
   const { id } = req.params;
   try {
     const result = await pool.query("SELECT * FROM users WHERE id = $1", [id]);
@@ -30,7 +31,7 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// Create a new user (POST)
+// 🆓 Create a new user (Public) - Users sign up first, then authenticate later
 router.post(
   "/",
   [
@@ -57,9 +58,10 @@ router.post(
   }
 );
 
-// Update a user (PUT)
+// 🔒 Update a user (Protected) - Requires authentication
 router.put(
   "/:id",
+  authenticateUser,
   [
     body("email").optional().isEmail().withMessage("Invalid email format"),
     body("username").optional().notEmpty().withMessage("Username cannot be empty"),
@@ -88,8 +90,8 @@ router.put(
   }
 );
 
-// Delete a user (DELETE)
-router.delete("/:id", async (req, res) => {
+// 🔒 Delete a user (Protected) - Requires authentication
+router.delete("/:id", authenticateUser, async (req, res) => {
   const { id } = req.params;
   try {
     const result = await pool.query("DELETE FROM users WHERE id = $1 RETURNING *", [id]);
@@ -104,4 +106,3 @@ router.delete("/:id", async (req, res) => {
 });
 
 module.exports = router;
-
