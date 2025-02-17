@@ -1,9 +1,10 @@
 // src/routes/users.js
 const express = require("express");
+const { body, validationResult } = require("express-validator"); // Input validation
 const router = express.Router();
 const pool = require("../models/db");
 
-// Get all users
+// Get all users (GET)
 router.get("/", async (req, res) => {
   try {
     const result = await pool.query("SELECT * FROM users");
@@ -14,7 +15,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-// Get a single user by ID
+// Get a single user by ID (GET)
 router.get("/:id", async (req, res) => {
   const { id } = req.params;
   try {
@@ -29,42 +30,65 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// Create a new user
-router.post("/", async (req, res) => {
-  const { username, email, profile_pic = "" } = req.body;  // Default to empty string
-  try {
-    const result = await pool.query(
-      "INSERT INTO users (id, username, email, profile_pic, followers_count, following_count, created_at) VALUES (gen_random_uuid(), $1, $2, $3, 0, 0, NOW()) RETURNING *",
-      [username, email, profile_pic]
-    );
-    res.status(201).json(result.rows[0]);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Failed to create a new user." });
-  }
-});
-
-
-// Update a user
-router.put("/:id", async (req, res) => {
-  const { id } = req.params;
-  const { username, email, profile_pic } = req.body;
-  try {
-    const result = await pool.query(
-      "UPDATE users SET username = $1, email = $2, profile_pic = $3 WHERE id = $4 RETURNING *",
-      [username, email, profile_pic, id]
-    );
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: "User not found." });
+// Create a new user (POST)
+router.post(
+  "/",
+  [
+    body("email").isEmail().withMessage("Invalid email format"),
+    body("username").notEmpty().withMessage("Username is required"),
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
     }
-    res.json(result.rows[0]);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Failed to update the user." });
-  }
-});
 
-// Delete a user
+    const { username, email, profile_pic = "" } = req.body;
+    try {
+      const result = await pool.query(
+        "INSERT INTO users (id, username, email, profile_pic, followers_count, following_count, created_at) VALUES (gen_random_uuid(), $1, $2, $3, 0, 0, NOW()) RETURNING *",
+        [username, email, profile_pic]
+      );
+      res.status(201).json(result.rows[0]);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: "Failed to create a new user." });
+    }
+  }
+);
+
+// Update a user (PUT)
+router.put(
+  "/:id",
+  [
+    body("email").optional().isEmail().withMessage("Invalid email format"),
+    body("username").optional().notEmpty().withMessage("Username cannot be empty"),
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { id } = req.params;
+    const { username, email, profile_pic } = req.body;
+    try {
+      const result = await pool.query(
+        "UPDATE users SET username = COALESCE($1, username), email = COALESCE($2, email), profile_pic = COALESCE($3, profile_pic) WHERE id = $4 RETURNING *",
+        [username, email, profile_pic, id]
+      );
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: "User not found." });
+      }
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: "Failed to update the user." });
+    }
+  }
+);
+
+// Delete a user (DELETE)
 router.delete("/:id", async (req, res) => {
   const { id } = req.params;
   try {
@@ -80,3 +104,4 @@ router.delete("/:id", async (req, res) => {
 });
 
 module.exports = router;
+
